@@ -1,0 +1,137 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model categories {
+  id               String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name             String             @unique @db.VarChar(100)
+  description      String?
+  product_listings product_listings[]
+}
+
+model favorites {
+  restaurant_id       String              @db.Uuid
+  product_listing_id  String              @db.Uuid
+  created_at          DateTime            @default(now()) @db.Timestamptz(6)
+  product_listings    product_listings    @relation(fields: [product_listing_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  restaurant_profiles restaurant_profiles @relation(fields: [restaurant_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@id([restaurant_id, product_listing_id])
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model fulfilment_arrangements {
+  id                  String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  purchase_request_id String            @unique @db.Uuid
+  method              String            @db.VarChar(20)
+  delivery_address    String?           @db.VarChar(255)
+  pickup_point        String?           @db.VarChar(255)
+  preferred_date      DateTime          @db.Date
+  status              String            @default("PENDING") @db.VarChar(20)
+  created_at          DateTime          @default(now()) @db.Timestamptz(6)
+  updated_at          DateTime          @default(now()) @db.Timestamptz(6)
+  purchase_requests   purchase_requests @relation(fields: [purchase_request_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+}
+
+model producer_profiles {
+  id               String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id          String             @unique @db.Uuid
+  business_name    String             @db.VarChar(200)
+  description      String?
+  phone            String?            @db.VarChar(30)
+  address          String?            @db.VarChar(255)
+  city             String?            @db.VarChar(100)
+  latitude         Float?
+  longitude        Float?
+  users            users              @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  product_listings product_listings[]
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model product_listings {
+  id                 String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  producer_id        String              @db.Uuid
+  category_id        String              @db.Uuid
+  name               String              @db.VarChar(200)
+  description        String?
+  price              Decimal             @db.Decimal(10, 2)
+  unit               String              @db.VarChar(20)
+  quality            String              @db.VarChar(100)
+  available_quantity Decimal             @db.Decimal(10, 2)
+  available_from     DateTime            @db.Date
+  available_until    DateTime            @db.Date
+  created_at         DateTime            @default(now()) @db.Timestamptz(6)
+  updated_at         DateTime            @default(now()) @db.Timestamptz(6)
+  is_active          Boolean             @default(true)
+  is_hidden          Boolean             @default(false)
+  favorites          favorites[]
+  categories         categories          @relation(fields: [category_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  producer_profiles  producer_profiles   @relation(fields: [producer_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  purchase_requests  purchase_requests[]
+  reports            reports[]
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model purchase_requests {
+  id                      String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  restaurant_id           String                   @db.Uuid
+  product_listing_id      String                   @db.Uuid
+  requested_quantity      Decimal                  @db.Decimal(10, 2)
+  unit_price              Decimal                  @db.Decimal(10, 2)
+  status                  String                   @default("SUBMITTED") @db.VarChar(20)
+  created_at              DateTime                 @default(now()) @db.Timestamptz(6)
+  updated_at              DateTime                 @default(now()) @db.Timestamptz(6)
+  fulfilment_arrangements fulfilment_arrangements?
+  product_listings        product_listings         @relation(fields: [product_listing_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  restaurant_profiles     restaurant_profiles      @relation(fields: [restaurant_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model reports {
+  id                  String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  product_listing_id  String              @db.Uuid
+  restaurant_id       String              @db.Uuid
+  reason              String
+  status              String              @default("PENDING") @db.VarChar(20)
+  reviewed_by         String?             @db.Uuid
+  admin_notes         String?
+  created_at          DateTime            @default(now()) @db.Timestamptz(6)
+  updated_at          DateTime            @default(now()) @db.Timestamptz(6)
+  product_listings    product_listings    @relation(fields: [product_listing_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  restaurant_profiles restaurant_profiles @relation(fields: [restaurant_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  users               users?              @relation(fields: [reviewed_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+}
+
+model restaurant_profiles {
+  id                String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id           String              @unique @db.Uuid
+  restaurant_name   String              @db.VarChar(200)
+  phone             String?             @db.VarChar(30)
+  address           String?             @db.VarChar(255)
+  city              String?             @db.VarChar(100)
+  latitude          Float?
+  longitude         Float?
+  favorites         favorites[]
+  purchase_requests purchase_requests[]
+  reports           reports[]
+  users             users               @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model users {
+  id                  String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email               String               @unique @db.VarChar(255)
+  password_hash       String               @db.VarChar(255)
+  role                String               @db.VarChar(30)
+  full_name           String               @db.VarChar(150)
+  created_at          DateTime             @default(now()) @db.Timestamptz(6)
+  updated_at          DateTime             @default(now()) @db.Timestamptz(6)
+  producer_profiles   producer_profiles?
+  reports             reports[]
+  restaurant_profiles restaurant_profiles?
+}
