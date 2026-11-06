@@ -1,33 +1,34 @@
-
 import {
   Injectable,
   ConflictException,
+  UnauthorizedException,
 } from '@nestjs/common';
-import { hash } from 'bcrypt';
+import { hash, compare } from 'bcrypt';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { RegisterDto } from './dto/register.dto.js';
+import { LoginDto } from './dto/login.dto.js';
 
 @Injectable()
 export class AuthService {
   constructor(private readonly prisma: PrismaService) {}
 
+  // REGISTER
   async register(data: RegisterDto) {
     const email = data.email.trim().toLowerCase();
 
-    // Check whether the email is already registered
     const existingUser = await this.prisma.users.findUnique({
       where: { email },
     });
 
     if (existingUser) {
-      throw new ConflictException('Email is already registered.');
+      throw new ConflictException(
+        'Email is already registered.',
+      );
     }
 
-    // Never store the original password
     const passwordHash = await hash(data.password, 12);
 
     try {
-      // Create the user and role-specific profile together
       const user = await this.prisma.users.create({
         data: {
           email,
@@ -71,18 +72,54 @@ export class AuthService {
         user,
       };
     } catch (error: unknown) {
-      // Handle duplicate-email requests that happen at the same time
       if (
         typeof error === 'object' &&
         error !== null &&
         'code' in error &&
         error.code === 'P2002'
       ) {
-        throw new ConflictException('Email is already registered.');
+        throw new ConflictException(
+          'Email is already registered.',
+        );
       }
 
       throw error;
     }
   }
-}
 
+  // LOGIN
+  async login(data: LoginDto) {
+    const email = data.email.trim().toLowerCase();
+
+    const user = await this.prisma.users.findUnique({
+      where: { email },
+    });
+
+    if (!user) {
+      throw new UnauthorizedException(
+        'Invalid email or password.',
+      );
+    }
+
+    const passwordMatches = await compare(
+      data.password,
+      user.password_hash,
+    );
+
+    if (!passwordMatches) {
+      throw new UnauthorizedException(
+        'Invalid email or password.',
+      );
+    }
+
+    return {
+      message: 'Credentials verified successfully.',
+      user: {
+        id: user.id,
+        email: user.email,
+        fullName: user.full_name,
+        role: user.role,
+      },
+    };
+  }
+}
