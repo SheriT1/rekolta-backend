@@ -1,8 +1,11 @@
+
 import {
   Injectable,
+  Inject,
   ConflictException,
   UnauthorizedException,
 } from '@nestjs/common';
+import { JwtService } from '@nestjs/jwt';
 import { hash, compare } from 'bcrypt';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { RegisterDto } from './dto/register.dto.js';
@@ -10,7 +13,13 @@ import { LoginDto } from './dto/login.dto.js';
 
 @Injectable()
 export class AuthService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    @Inject(PrismaService)
+    private readonly prisma: PrismaService,
+
+    @Inject(JwtService)
+    private readonly jwtService: JwtService,
+  ) {}
 
   // REGISTER
   async register(data: RegisterDto) {
@@ -112,6 +121,12 @@ export class AuthService {
       );
     }
 
+    // Generate JWT after successful login
+    const accessToken = await this.jwtService.signAsync({
+      sub: user.id,
+      role: user.role,
+    });
+
     return {
       message: 'Credentials verified successfully.',
       user: {
@@ -120,6 +135,7 @@ export class AuthService {
         fullName: user.full_name,
         role: user.role,
       },
+      accessToken,
     };
   }
 }
