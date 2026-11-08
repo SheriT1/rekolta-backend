@@ -1,13 +1,17 @@
 
+
 import {
   Body,
   Controller,
+  Get,
   HttpCode,
   HttpStatus,
   Post,
+  Req,
   Res,
+  UnauthorizedException,
 } from '@nestjs/common';
-import type { Response } from 'express';
+import type { Request, Response } from 'express';
 
 import { AuthService } from './auth.service.js';
 import { RegisterDto } from './dto/register.dto.js';
@@ -48,4 +52,26 @@ export class AuthController {
       user: result.user,
     };
   }
+
+  // GET CURRENT LOGGED-IN USER
+  @Get('me')
+  @HttpCode(HttpStatus.OK)
+  async getMe(@Req() request: Request) {
+    const accessToken = request.cookies?.rekolta_access_token;
+
+    if (typeof accessToken !== 'string' || !accessToken) {
+      throw new UnauthorizedException(
+        'You are not logged in.',
+      );
+    }
+
+    const user = await this.authService.getCurrentUser(
+      accessToken,
+    );
+
+    return {
+      user,
+    };
+  }
 }
+

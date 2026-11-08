@@ -1,4 +1,5 @@
 
+
 import {
   Injectable,
   Inject,
@@ -136,6 +137,65 @@ export class AuthService {
         role: user.role,
       },
       accessToken,
+    };
+  }
+
+  // GET CURRENT AUTHENTICATED USER
+  async getCurrentUser(accessToken: string) {
+    if (!accessToken) {
+      throw new UnauthorizedException(
+        'You are not logged in.',
+      );
+    }
+
+    let payload: { sub?: unknown };
+
+    try {
+      payload = await this.jwtService.verifyAsync<{
+        sub?: unknown;
+      }>(accessToken);
+    } catch {
+      throw new UnauthorizedException(
+        'Invalid or expired authentication token.',
+      );
+    }
+
+    if (
+      typeof payload.sub !== 'string' &&
+      typeof payload.sub !== 'number'
+    ) {
+      throw new UnauthorizedException(
+        'Invalid authentication token.',
+      );
+    }
+
+    // Look up the user by the ID stored in the JWT.
+    // The ID type must match the Prisma schema.
+    const userId = payload.sub;
+
+    const user = await this.prisma.users.findFirst({
+      where: {
+        id: userId as string,
+      },
+      select: {
+        id: true,
+        email: true,
+        full_name: true,
+        role: true,
+      },
+    });
+
+    if (!user) {
+      throw new UnauthorizedException(
+        'User account no longer exists.',
+      );
+    }
+
+    return {
+      id: user.id,
+      email: user.email,
+      fullName: user.full_name,
+      role: user.role,
     };
   }
 }
