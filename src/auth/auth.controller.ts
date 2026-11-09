@@ -1,5 +1,4 @@
 
-
 import {
   Body,
   Controller,
@@ -71,6 +70,24 @@ export class AuthController {
 
     return {
       user,
+    };
+  }
+
+  // LOGOUT
+  @Post('logout')
+  @HttpCode(HttpStatus.OK)
+  logout(
+    @Res({ passthrough: true }) response: Response,
+  ) {
+    response.clearCookie('rekolta_access_token', {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      path: '/',
+    });
+
+    return {
+      message: 'Logged out successfully.',
     };
   }
 }
