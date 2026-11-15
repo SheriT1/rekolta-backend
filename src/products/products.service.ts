@@ -1,11 +1,13 @@
 
 import {
   BadRequestException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { CreateProductDto } from './dto/create-product.dto.js';
+import { UpdateProductDto } from './dto/update-product.dto.js';
 
 @Injectable()
 export class ProductsService {
@@ -78,7 +80,6 @@ export class ProductsService {
       );
     }
 
-    // Ensure the selected category exists
     const category = await this.prisma.categories.findUnique({
       where: {
         id: data.categoryId,
@@ -91,7 +92,6 @@ export class ProductsService {
       );
     }
 
-    // Validate product availability dates
     const availableFrom = new Date(data.availableFrom);
     const availableUntil = new Date(data.availableUntil);
 
@@ -105,7 +105,6 @@ export class ProductsService {
       );
     }
 
-    // Save the new product in PostgreSQL
     return this.prisma.product_listings.create({
       data: {
         producer_id: producer.id,
@@ -120,6 +119,123 @@ export class ProductsService {
         available_until: availableUntil,
         is_active: true,
         is_hidden: false,
+      },
+      include: {
+        categories: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+      },
+    });
+  }
+
+  // PRODUCER: Update an existing product listing
+  async update(
+    userId: string,
+    productId: string,
+    data: UpdateProductDto,
+  ) {
+    const producer =
+      await this.prisma.producer_profiles.findUnique({
+        where: {
+          user_id: userId,
+        },
+      });
+
+    if (!producer) {
+      throw new NotFoundException(
+        'Producer profile not found.',
+      );
+    }
+
+    const product =
+      await this.prisma.product_listings.findUnique({
+        where: {
+          id: productId,
+        },
+      });
+
+    if (!product) {
+      throw new NotFoundException(
+        'Product not found.',
+      );
+    }
+
+    // Prevent producers from editing other producers' products
+    if (product.producer_id !== producer.id) {
+      throw new ForbiddenException(
+        'You can only edit your own products.',
+      );
+    }
+
+    // Validate the new category, if one was provided
+    if (data.categoryId !== undefined) {
+      const category =
+        await this.prisma.categories.findUnique({
+          where: {
+            id: data.categoryId,
+          },
+        });
+
+      if (!category) {
+        throw new BadRequestException(
+          'Selected product category does not exist.',
+        );
+      }
+    }
+
+    // Use existing dates when they are not being changed
+    const availableFrom =
+      data.availableFrom !== undefined
+        ? new Date(data.availableFrom)
+        : product.available_from;
+
+    const availableUntil =
+      data.availableUntil !== undefined
+        ? new Date(data.availableUntil)
+        : product.available_until;
+
+    if (
+      Number.isNaN(availableFrom.getTime()) ||
+      Number.isNaN(availableUntil.getTime()) ||
+      availableUntil < availableFrom
+    ) {
+      throw new BadRequestException(
+        'Availability end date must be on or after the start date.',
+      );
+    }
+
+    // Update only the fields supplied by the producer
+    return this.prisma.product_listings.update({
+      where: {
+        id: productId,
+      },
+      data: {
+        ...(data.categoryId !== undefined && {
+          category_id: data.categoryId,
+        }),
+        ...(data.name !== undefined && {
+          name: data.name.trim(),
+        }),
+        ...(data.description !== undefined && {
+          description: data.description.trim() || null,
+        }),
+        ...(data.price !== undefined && {
+          price: data.price,
+        }),
+        ...(data.unit !== undefined && {
+          unit: data.unit.trim(),
+        }),
+        ...(data.quality !== undefined && {
+          quality: data.quality.trim(),
+        }),
+        ...(data.availableQuantity !== undefined && {
+          available_quantity: data.availableQuantity,
+        }),
+        available_from: availableFrom,
+        available_until: availableUntil,
       },
       include: {
         categories: {

@@ -4,6 +4,9 @@ import {
   Controller,
   ForbiddenException,
   Get,
+  Param,
+  ParseUUIDPipe,
+  Patch,
   Post,
   Req,
   UnauthorizedException,
@@ -13,6 +16,7 @@ import type { Request } from 'express';
 import { ProductsService } from './products.service.js';
 import { AuthService } from '../auth/auth.service.js';
 import { CreateProductDto } from './dto/create-product.dto.js';
+import { UpdateProductDto } from './dto/update-product.dto.js';
 
 @Controller('products')
 export class ProductsController {
@@ -44,6 +48,22 @@ export class ProductsController {
     const user = await this.getAuthenticatedProducer(request);
 
     return this.productsService.create(user.id, data);
+  }
+
+  // PRODUCER: Update an existing product
+  @Patch(':id')
+  async update(
+    @Req() request: Request,
+    @Param('id', new ParseUUIDPipe()) productId: string,
+    @Body() data: UpdateProductDto,
+  ) {
+    const user = await this.getAuthenticatedProducer(request);
+
+    return this.productsService.update(
+      user.id,
+      productId,
+      data,
+    );
   }
 
   // Verify the logged-in user is a producer
