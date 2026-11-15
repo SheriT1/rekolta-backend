@@ -2,6 +2,7 @@
 import {
   Body,
   Controller,
+  Delete,
   ForbiddenException,
   Get,
   Param,
@@ -63,6 +64,19 @@ export class ProductsController {
       user.id,
       productId,
       data,
+    );
+  }
+    // PRODUCER: Delete an existing product
+  @Delete(':id')
+  async remove(
+    @Req() request: Request,
+    @Param('id', new ParseUUIDPipe()) productId: string,
+  ) {
+    const user = await this.getAuthenticatedProducer(request);
+
+    return this.productsService.remove(
+      user.id,
+      productId,
     );
   }
 

@@ -50,6 +50,7 @@ export class ProductsService {
     return this.prisma.product_listings.findMany({
       where: {
         producer_id: producer.id,
+        is_hidden: false,
       },
       include: {
         categories: {
@@ -244,6 +245,53 @@ export class ProductsService {
             name: true,
           },
         },
+      },
+    });
+  }
+
+  // PRODUCER: Delete an existing product listing
+  async remove(userId: string, productId: string) {
+    const producer =
+      await this.prisma.producer_profiles.findUnique({
+        where: {
+          user_id: userId,
+        },
+      });
+
+    if (!producer) {
+      throw new NotFoundException(
+        'Producer profile not found.',
+      );
+    }
+
+    const product =
+      await this.prisma.product_listings.findUnique({
+        where: {
+          id: productId,
+        },
+      });
+
+    if (!product) {
+      throw new NotFoundException(
+        'Product not found.',
+      );
+    }
+
+    // Prevent producers from deleting other producers' products
+    if (product.producer_id !== producer.id) {
+      throw new ForbiddenException(
+        'You can only delete your own products.',
+      );
+    }
+
+    // Soft delete: hide the listing without removing database records
+    return this.prisma.product_listings.update({
+      where: {
+        id: productId,
+      },
+      data: {
+        is_active: false,
+        is_hidden: true,
       },
     });
   }
