@@ -21,15 +21,19 @@ async findAll() {
     where: {
       is_active: true,
       is_hidden: false,
-      available_quantity: {
-        gt: 0,
-      },
+      available_quantity: { gt: 0 },
     },
     include: {
       categories: {
         select: {
           id: true,
           name: true,
+        },
+      },
+      producer_profiles: {
+        select: {
+          business_name: true,
+          city: true,
         },
       },
     },
