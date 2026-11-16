@@ -15,21 +15,29 @@ export class ProductsService {
     private readonly prisma: PrismaService,
   ) {}
 
-  // PUBLIC: Get all available products
-  async findAll() {
-    return this.prisma.product_listings.findMany({
-      where: {
-        is_active: true,
-        is_hidden: false,
-        available_quantity: {
-          gt: 0,
+ // PUBLIC: Get all available products with their categories
+async findAll() {
+  return this.prisma.product_listings.findMany({
+    where: {
+      is_active: true,
+      is_hidden: false,
+      available_quantity: {
+        gt: 0,
+      },
+    },
+    include: {
+      categories: {
+        select: {
+          id: true,
+          name: true,
         },
       },
-      orderBy: {
-        created_at: 'desc',
-      },
-    });
-  }
+    },
+    orderBy: {
+      created_at: 'desc',
+    },
+  });
+}
 
   // PRODUCER: Get all products belonging to
   // the currently logged-in producer
