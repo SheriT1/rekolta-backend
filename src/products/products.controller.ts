@@ -11,7 +11,12 @@ import {
   Post,
   Req,
   UnauthorizedException,
+  UploadedFile,
+  UseInterceptors,
 } from '@nestjs/common';
+
+import { FileInterceptor } from '@nestjs/platform-express';
+import { memoryStorage } from 'multer';
 import type { Request } from 'express';
 
 import { ProductsService } from './products.service.js';
@@ -77,6 +82,30 @@ export class ProductsController {
     return this.productsService.remove(
       user.id,
       productId,
+    );
+  }
+    // PRODUCER: Upload an image to an existing product
+  @Post(':id/images')
+  @UseInterceptors(
+    FileInterceptor('image', {
+      storage: memoryStorage(),
+      limits: {
+        fileSize: 5 * 1024 * 1024,
+        files: 1,
+      },
+    }),
+  )
+  async uploadImage(
+    @Req() request: Request,
+    @Param('id', new ParseUUIDPipe()) productId: string,
+    @UploadedFile() file: Express.Multer.File,
+  ) {
+    const user = await this.getAuthenticatedProducer(request);
+
+    return this.productsService.uploadImage(
+      user.id,
+      productId,
+      file,
     );
   }
 
