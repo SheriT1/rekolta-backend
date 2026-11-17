@@ -70,6 +70,7 @@ model product_listings {
   is_active          Boolean             @default(true)
   is_hidden          Boolean             @default(false)
   favorites          favorites[]
+  product_images     product_images[]
   categories         categories          @relation(fields: [category_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
   producer_profiles  producer_profiles   @relation(fields: [producer_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
   purchase_requests  purchase_requests[]
@@ -134,4 +135,16 @@ model users {
   producer_profiles   producer_profiles?
   reports             reports[]
   restaurant_profiles restaurant_profiles?
+}
+model product_images {
+  id                 String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  product_listing_id String           @db.Uuid
+  image_url          String           @db.VarChar(500)
+  sort_order         Int              @default(0)
+  is_cover           Boolean          @default(false)
+  created_at         DateTime         @default(now()) @db.Timestamptz(6)
+
+  product_listings   product_listings @relation(fields: [product_listing_id], references: [id], onDelete: Cascade)
+
+  @@index([product_listing_id])
 }
