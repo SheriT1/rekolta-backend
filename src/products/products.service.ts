@@ -52,6 +52,43 @@ include: {
   });
 }
 
+  // PUBLIC: Get a single available product with images and producer
+  async findOne(productId: string) {
+    const product = await this.prisma.product_listings.findFirst({
+      where: {
+        id: productId,
+        is_active: true,
+        is_hidden: false,
+        available_quantity: { gt: 0 },
+      },
+      include: {
+        categories: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+        producer_profiles: {
+          select: {
+            business_name: true,
+            city: true,
+          },
+        },
+        product_images: {
+          orderBy: {
+            sort_order: 'asc',
+          },
+        },
+      },
+    });
+
+    if (!product) {
+      throw new NotFoundException('Product not found.');
+    }
+
+    return product;
+  }
+
   // PRODUCER: Get all products belonging to
   // the currently logged-in producer
   async findMine(userId: string) {
