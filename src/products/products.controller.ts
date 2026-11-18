@@ -36,8 +36,14 @@ export class ProductsController {
   findAll() {
     return this.productsService.findAll();
   }
-
-  // PRODUCER: Get own product listings
+  // PUBLIC: Get a single product by ID
+  @Get(':id')
+  findOne(
+    @Param('id', new ParseUUIDPipe()) productId: string,
+  ) {
+    return this.productsService.findOne(productId);
+  }
+    // PRODUCER: Get own product listings
   @Get('mine')
   async findMine(@Req() request: Request) {
     const user = await this.getAuthenticatedProducer(request);
