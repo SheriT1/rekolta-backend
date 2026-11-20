@@ -1,4 +1,5 @@
 
+
 import {
   Body,
   Controller,
@@ -36,19 +37,22 @@ export class ProductsController {
   findAll() {
     return this.productsService.findAll();
   }
+
+  // PRODUCER: Get own product listings
+  // Must be above @Get(':id') so "mine" is not treated as a UUID
+  @Get('mine')
+  async findMine(@Req() request: Request) {
+    const user = await this.getAuthenticatedProducer(request);
+
+    return this.productsService.findMine(user.id);
+  }
+
   // PUBLIC: Get a single product by ID
   @Get(':id')
   findOne(
     @Param('id', new ParseUUIDPipe()) productId: string,
   ) {
     return this.productsService.findOne(productId);
-  }
-    // PRODUCER: Get own product listings
-  @Get('mine')
-  async findMine(@Req() request: Request) {
-    const user = await this.getAuthenticatedProducer(request);
-
-    return this.productsService.findMine(user.id);
   }
 
   // PRODUCER: Create a new product
@@ -77,7 +81,8 @@ export class ProductsController {
       data,
     );
   }
-    // PRODUCER: Delete an existing product
+
+  // PRODUCER: Delete an existing product
   @Delete(':id')
   async remove(
     @Req() request: Request,
@@ -90,7 +95,8 @@ export class ProductsController {
       productId,
     );
   }
-    // PRODUCER: Upload an image to an existing product
+
+  // PRODUCER: Upload an image to an existing product
   @Post(':id/images')
   @UseInterceptors(
     FileInterceptor('image', {
