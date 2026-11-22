@@ -7,6 +7,7 @@ import {
 import { PrismaService } from '../prisma/prisma.service.js';
 import { CreatePurchaseRequestDto } from './dto/create-purchase-request.dto.js';
 
+
 @Injectable()
 export class PurchaseRequestsService {
   constructor(private readonly prisma: PrismaService) {}
@@ -62,6 +63,55 @@ export class PurchaseRequestsService {
         unit_price: product.price,
         status: 'SUBMITTED',
       },
+    });
+  }
+
+  // RESTAURANT: Cancel own pending purchase request
+  async cancel(userId: string, requestId: string) {
+    const restaurant = await this.prisma.restaurant_profiles.findUnique({
+      where: { user_id: userId },
+    });
+
+    if (!restaurant) {
+      throw new NotFoundException('Restaurant profile not found.');
+    }
+
+    const purchaseRequest = await this.prisma.purchase_requests.findFirst({
+      where: {
+        id: requestId,
+        restaurant_id: restaurant.id,
+      },
+    });
+
+    if (!purchaseRequest) {
+      throw new NotFoundException('Purchase request not found.');
+    }
+
+    if (purchaseRequest.status !== 'SUBMITTED') {
+      throw new BadRequestException(
+        'Only pending purchase requests can be cancelled.',
+      );
+    }
+
+    const result = await this.prisma.purchase_requests.updateMany({
+      where: {
+        id: requestId,
+        restaurant_id: restaurant.id,
+        status: 'SUBMITTED',
+      },
+      data: {
+        status: 'CANCELLED',
+      },
+    });
+
+    if (result.count === 0) {
+      throw new BadRequestException(
+        'This purchase request can no longer be cancelled.',
+      );
+    }
+
+    return this.prisma.purchase_requests.findUnique({
+      where: { id: requestId },
     });
   }
 

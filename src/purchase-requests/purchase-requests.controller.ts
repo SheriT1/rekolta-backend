@@ -3,9 +3,11 @@ import {
   Body,
   Controller,
   ForbiddenException,
-  Get,
-  Post,
-  Req,
+    Get,
+    Patch,
+    Param,
+    Post,
+    Req,
   UnauthorizedException,
 } from '@nestjs/common';
 import type { Request } from 'express';
@@ -44,6 +46,19 @@ export class PurchaseRequestsController {
     );
 
     return this.purchaseRequestsService.findMine(user.id);
+  }
+    // RESTAURANT: Cancel a pending purchase request
+  @Patch(':id/cancel')
+  async cancel(
+    @Req() request: Request,
+    @Param('id') requestId: string,
+  ) {
+    const user = await this.getAuthenticatedUser(
+      request,
+      'RESTAURANT',
+    );
+
+    return this.purchaseRequestsService.cancel(user.id, requestId);
   }
 
   // PRODUCER: View incoming purchase requests
