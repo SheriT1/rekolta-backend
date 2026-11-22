@@ -115,6 +115,114 @@ export class PurchaseRequestsService {
     });
   }
 
+
+  // PRODUCER: Accept an incoming purchase request
+  async accept(userId: string, requestId: string) {
+    const producer = await this.prisma.producer_profiles.findUnique({
+      where: { user_id: userId },
+    });
+
+    if (!producer) {
+      throw new NotFoundException('Producer profile not found.');
+    }
+
+    const purchaseRequest = await this.prisma.purchase_requests.findFirst({
+      where: {
+        id: requestId,
+        product_listings: {
+          producer_id: producer.id,
+        },
+      },
+    });
+
+    if (!purchaseRequest) {
+      throw new NotFoundException('Purchase request not found.');
+    }
+
+    if (purchaseRequest.status !== 'SUBMITTED') {
+      throw new BadRequestException(
+        'Only pending purchase requests can be accepted.',
+      );
+    }
+
+    const result = await this.prisma.purchase_requests.updateMany({
+      where: {
+        id: requestId,
+        status: 'SUBMITTED',
+        product_listings: {
+          producer_id: producer.id,
+        },
+      },
+      data: {
+        status: 'ACCEPTED',
+      },
+    });
+
+    if (result.count === 0) {
+      throw new BadRequestException(
+        'This purchase request can no longer be accepted.',
+      );
+    }
+
+    return this.prisma.purchase_requests.findUnique({
+      where: { id: requestId },
+    });
+  }
+
+  // PRODUCER: Reject an incoming purchase request
+  async reject(userId: string, requestId: string) {
+    const producer = await this.prisma.producer_profiles.findUnique({
+      where: { user_id: userId },
+    });
+
+    if (!producer) {
+      throw new NotFoundException('Producer profile not found.');
+    }
+
+    const purchaseRequest = await this.prisma.purchase_requests.findFirst({
+      where: {
+        id: requestId,
+        product_listings: {
+          producer_id: producer.id,
+        },
+      },
+    });
+
+    if (!purchaseRequest) {
+      throw new NotFoundException('Purchase request not found.');
+    }
+
+    if (purchaseRequest.status !== 'SUBMITTED') {
+      throw new BadRequestException(
+        'Only pending purchase requests can be rejected.',
+      );
+    }
+
+    const result = await this.prisma.purchase_requests.updateMany({
+      where: {
+        id: requestId,
+        status: 'SUBMITTED',
+        product_listings: {
+          producer_id: producer.id,
+        },
+      },
+      data: {
+        status: 'REJECTED',
+      },
+    });
+
+    if (result.count === 0) {
+      throw new BadRequestException(
+        'This purchase request can no longer be rejected.',
+      );
+    }
+
+    return this.prisma.purchase_requests.findUnique({
+      where: { id: requestId },
+    });
+  }
+
+
   // RESTAURANT: View own purchase requests
   async findMine(userId: string) {
     const restaurant = await this.prisma.restaurant_profiles.findUnique({

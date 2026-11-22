@@ -72,6 +72,35 @@ export class PurchaseRequestsController {
     return this.purchaseRequestsService.findReceived(user.id);
   }
 
+  // PRODUCER: Accept a pending purchase request
+  @Patch(':id/accept')
+  async accept(
+    @Req() request: Request,
+    @Param('id') requestId: string,
+  ) {
+    const user = await this.getAuthenticatedUser(
+      request,
+      'PRODUCER',
+    );
+
+    return this.purchaseRequestsService.accept(user.id, requestId);
+  }
+
+  // PRODUCER: Reject a pending purchase request
+  @Patch(':id/reject')
+  async reject(
+    @Req() request: Request,
+    @Param('id') requestId: string,
+  ) {
+    const user = await this.getAuthenticatedUser(
+      request,
+      'PRODUCER',
+    );
+
+    return this.purchaseRequestsService.reject(user.id, requestId);
+  }
+
+
   private async getAuthenticatedUser(
     request: Request,
     requiredRole: 'RESTAURANT' | 'PRODUCER',
