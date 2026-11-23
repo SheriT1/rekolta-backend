@@ -6,12 +6,14 @@ import { ProductsModule } from './products/products.module.js';
 import { PrismaService } from './prisma/prisma.service.js';
 import { AuthModule } from './auth/auth.module.js';
 import { PurchaseRequestsModule } from './purchase-requests/purchase-requests.module.js';
+import { FulfilmentArrangementsModule } from './fulfilment-arrangements/fulfilment-arrangements.module.js';
 
 @Module({
   imports: [
     ProductsModule,
     AuthModule,
     PurchaseRequestsModule,
+    FulfilmentArrangementsModule,
   ],
   controllers: [AppController],
   providers: [AppService, PrismaService],
