@@ -66,7 +66,8 @@ export class PurchaseRequestsService {
     });
   }
 
-  // RESTAURANT: Cancel own pending purchase request
+
+  // RESTAURANT: Cancel own submitted or accepted purchase request
   async cancel(userId: string, requestId: string) {
     const restaurant = await this.prisma.restaurant_profiles.findUnique({
       where: { user_id: userId },
@@ -76,42 +77,60 @@ export class PurchaseRequestsService {
       throw new NotFoundException('Restaurant profile not found.');
     }
 
-    const purchaseRequest = await this.prisma.purchase_requests.findFirst({
-      where: {
-        id: requestId,
-        restaurant_id: restaurant.id,
-      },
-    });
+    return this.prisma.$transaction(async (tx) => {
+      const purchaseRequest = await tx.purchase_requests.findFirst({
+        where: {
+          id: requestId,
+          restaurant_id: restaurant.id,
+        },
+      });
 
-    if (!purchaseRequest) {
-      throw new NotFoundException('Purchase request not found.');
-    }
+      if (!purchaseRequest) {
+        throw new NotFoundException('Purchase request not found.');
+      }
 
-    if (purchaseRequest.status !== 'SUBMITTED') {
-      throw new BadRequestException(
-        'Only pending purchase requests can be cancelled.',
-      );
-    }
+      if (
+        purchaseRequest.status !== 'SUBMITTED' &&
+        purchaseRequest.status !== 'ACCEPTED'
+      ) {
+        throw new BadRequestException(
+          'Only submitted or accepted requests can be cancelled.',
+        );
+      }
 
-    const result = await this.prisma.purchase_requests.updateMany({
-      where: {
-        id: requestId,
-        restaurant_id: restaurant.id,
-        status: 'SUBMITTED',
-      },
-      data: {
-        status: 'CANCELLED',
-      },
-    });
+      const result = await tx.purchase_requests.updateMany({
+        where: {
+          id: requestId,
+          restaurant_id: restaurant.id,
+          status: purchaseRequest.status,
+        },
+        data: {
+          status: 'CANCELLED',
+        },
+      });
 
-    if (result.count === 0) {
-      throw new BadRequestException(
-        'This purchase request can no longer be cancelled.',
-      );
-    }
+      if (result.count === 0) {
+        throw new BadRequestException(
+          'This purchase request can no longer be cancelled.',
+        );
+      }
 
-    return this.prisma.purchase_requests.findUnique({
-      where: { id: requestId },
+      if (purchaseRequest.status === 'ACCEPTED') {
+        await tx.product_listings.update({
+          where: {
+            id: purchaseRequest.product_listing_id,
+          },
+          data: {
+            available_quantity: {
+              increment: purchaseRequest.requested_quantity,
+            },
+          },
+        });
+      }
+
+      return tx.purchase_requests.findUnique({
+        where: { id: requestId },
+      });
     });
   }
 
@@ -126,46 +145,66 @@ export class PurchaseRequestsService {
       throw new NotFoundException('Producer profile not found.');
     }
 
-    const purchaseRequest = await this.prisma.purchase_requests.findFirst({
-      where: {
-        id: requestId,
-        product_listings: {
-          producer_id: producer.id,
+    return this.prisma.$transaction(async (tx) => {
+      const purchaseRequest = await tx.purchase_requests.findFirst({
+        where: {
+          id: requestId,
+          product_listings: {
+            producer_id: producer.id,
+          },
         },
-      },
-    });
+      });
 
-    if (!purchaseRequest) {
-      throw new NotFoundException('Purchase request not found.');
-    }
+      if (!purchaseRequest) {
+        throw new NotFoundException('Purchase request not found.');
+      }
 
-    if (purchaseRequest.status !== 'SUBMITTED') {
-      throw new BadRequestException(
-        'Only pending purchase requests can be accepted.',
-      );
-    }
+      if (purchaseRequest.status !== 'SUBMITTED') {
+        throw new BadRequestException(
+          'Only pending purchase requests can be accepted.',
+        );
+      }
 
-    const result = await this.prisma.purchase_requests.updateMany({
-      where: {
-        id: requestId,
-        status: 'SUBMITTED',
-        product_listings: {
+      const stockUpdate = await tx.product_listings.updateMany({
+        where: {
+          id: purchaseRequest.product_listing_id,
           producer_id: producer.id,
+          available_quantity: {
+            gte: purchaseRequest.requested_quantity,
+          },
         },
-      },
-      data: {
-        status: 'ACCEPTED',
-      },
-    });
+        data: {
+          available_quantity: {
+            decrement: purchaseRequest.requested_quantity,
+          },
+        },
+      });
 
-    if (result.count === 0) {
-      throw new BadRequestException(
-        'This purchase request can no longer be accepted.',
-      );
-    }
+      if (stockUpdate.count === 0) {
+        throw new BadRequestException(
+          'Insufficient available quantity to accept this request.',
+        );
+      }
 
-    return this.prisma.purchase_requests.findUnique({
-      where: { id: requestId },
+      const requestUpdate = await tx.purchase_requests.updateMany({
+        where: {
+          id: requestId,
+          status: 'SUBMITTED',
+        },
+        data: {
+          status: 'ACCEPTED',
+        },
+      });
+
+      if (requestUpdate.count === 0) {
+        throw new BadRequestException(
+          'This purchase request can no longer be accepted.',
+        );
+      }
+
+      return tx.purchase_requests.findUnique({
+        where: { id: requestId },
+      });
     });
   }
 
