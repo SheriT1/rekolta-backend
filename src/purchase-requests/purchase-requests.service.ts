@@ -67,26 +67,33 @@ export class PurchaseRequestsService {
   }
 
 
+  
   // RESTAURANT: Cancel own submitted or accepted purchase request
   async cancel(userId: string, requestId: string) {
-    const restaurant = await this.prisma.restaurant_profiles.findUnique({
-      where: { user_id: userId },
-    });
+    const restaurant =
+      await this.prisma.restaurant_profiles.findUnique({
+        where: { user_id: userId },
+      });
 
     if (!restaurant) {
-      throw new NotFoundException('Restaurant profile not found.');
+      throw new NotFoundException(
+        'Restaurant profile not found.',
+      );
     }
 
     return this.prisma.$transaction(async (tx) => {
-      const purchaseRequest = await tx.purchase_requests.findFirst({
-        where: {
-          id: requestId,
-          restaurant_id: restaurant.id,
-        },
-      });
+      const purchaseRequest =
+        await tx.purchase_requests.findFirst({
+          where: {
+            id: requestId,
+            restaurant_id: restaurant.id,
+          },
+        });
 
       if (!purchaseRequest) {
-        throw new NotFoundException('Purchase request not found.');
+        throw new NotFoundException(
+          'Purchase request not found.',
+        );
       }
 
       if (
@@ -98,16 +105,19 @@ export class PurchaseRequestsService {
         );
       }
 
-      const result = await tx.purchase_requests.updateMany({
-        where: {
-          id: requestId,
-          restaurant_id: restaurant.id,
-          status: purchaseRequest.status,
-        },
-        data: {
-          status: 'CANCELLED',
-        },
-      });
+      // Update the order status.
+      const result =
+        await tx.purchase_requests.updateMany({
+          where: {
+            id: requestId,
+            restaurant_id: restaurant.id,
+            status: purchaseRequest.status,
+          },
+          data: {
+            status: 'CANCELLED',
+            updated_at: new Date(),
+          },
+        });
 
       if (result.count === 0) {
         throw new BadRequestException(
@@ -115,6 +125,7 @@ export class PurchaseRequestsService {
         );
       }
 
+      // Restore inventory if the order was accepted.
       if (purchaseRequest.status === 'ACCEPTED') {
         await tx.product_listings.update({
           where: {
@@ -122,17 +133,33 @@ export class PurchaseRequestsService {
           },
           data: {
             available_quantity: {
-              increment: purchaseRequest.requested_quantity,
+              increment:
+                purchaseRequest.requested_quantity,
             },
           },
         });
       }
+
+      // Cancel any associated pickup/delivery arrangement.
+      await tx.fulfilment_arrangements.updateMany({
+        where: {
+          purchase_request_id: requestId,
+          status: {
+            in: ['PENDING', 'CONFIRMED'],
+          },
+        },
+        data: {
+          status: 'CANCELLED',
+          updated_at: new Date(),
+        },
+      });
 
       return tx.purchase_requests.findUnique({
         where: { id: requestId },
       });
     });
   }
+
 
 
   // PRODUCER: Accept an incoming purchase request
