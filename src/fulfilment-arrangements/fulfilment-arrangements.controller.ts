@@ -72,6 +72,23 @@ export class FulfilmentArrangementsController {
     );
   }
 
+  // PRODUCER: Decline pickup or delivery
+  @Patch(':id/decline')
+  async decline(
+    @Req() request: Request,
+    @Param('id') arrangementId: string,
+  ) {
+    const user = await this.getAuthenticatedUser(
+      request,
+      'PRODUCER',
+    );
+
+    return this.fulfilmentArrangementsService.decline(
+      user.id,
+      arrangementId,
+    );
+  }
+
   // Authenticate user and optionally verify their role
   private async getAuthenticatedUser(
     request: Request,
