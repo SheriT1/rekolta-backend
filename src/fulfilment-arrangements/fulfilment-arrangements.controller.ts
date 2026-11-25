@@ -1,4 +1,3 @@
-
 import {
   Body,
   Controller,
@@ -15,6 +14,7 @@ import type { Request } from 'express';
 import { AuthService } from '../auth/auth.service.js';
 import { FulfilmentArrangementsService } from './fulfilment-arrangements.service.js';
 import { CreateFulfilmentArrangementDto } from './dto/create-fulfilment-arrangement.dto.js';
+import { CreateCounterproposalDto } from './dto/create-counterproposal.dto.js';
 
 @Controller('fulfilment-arrangements')
 export class FulfilmentArrangementsController {
@@ -86,6 +86,25 @@ export class FulfilmentArrangementsController {
     return this.fulfilmentArrangementsService.decline(
       user.id,
       arrangementId,
+    );
+  }
+
+  // PRODUCER: Suggest an alternative arrangement
+  @Patch(':id/counterproposal')
+  async counterproposal(
+    @Req() request: Request,
+    @Param('id') arrangementId: string,
+    @Body() data: CreateCounterproposalDto,
+  ) {
+    const user = await this.getAuthenticatedUser(
+      request,
+      'PRODUCER',
+    );
+
+    return this.fulfilmentArrangementsService.counterproposal(
+      user.id,
+      arrangementId,
+      data,
     );
   }
 
