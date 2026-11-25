@@ -100,6 +100,27 @@ export class FulfilmentArrangementsService {
       );
     }
 
+    // Validate and normalize the optional message.
+    if (
+      data.message != null &&
+      typeof data.message !== 'string'
+    ) {
+      throw new BadRequestException(
+        'The message must be a string.',
+      );
+    }
+
+    if (
+      data.message != null &&
+      data.message.length > 500
+    ) {
+      throw new BadRequestException(
+        'The message cannot exceed 500 characters.',
+      );
+    }
+
+    const message = data.message?.trim() || null;
+
     let preferredTime: Date | null = null;
 
     if (data.preferredTime) {
@@ -156,6 +177,7 @@ export class FulfilmentArrangementsService {
                 : null,
             preferred_date: preferredDate,
             preferred_time: preferredTime,
+            message,
             status: 'PENDING',
           },
         });

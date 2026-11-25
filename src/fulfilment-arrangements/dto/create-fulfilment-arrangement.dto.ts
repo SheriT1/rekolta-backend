@@ -33,4 +33,9 @@ export class CreateFulfilmentArrangementDto {
   @IsString()
   @MaxLength(255)
   pickupPoint?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  message?: string;
 }
