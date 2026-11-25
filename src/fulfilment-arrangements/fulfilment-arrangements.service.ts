@@ -118,25 +118,47 @@ export class FulfilmentArrangementsService {
       );
     }
 
-    // The unique purchase_request_id constraint prevents
-    // multiple arrangements for the same order.
     try {
-      return await this.prisma.fulfilment_arrangements.create({
-        data: {
-          purchase_request_id: purchaseRequest.id,
-          method: data.method,
-          delivery_address:
-            data.method === 'DELIVERY'
-              ? data.deliveryAddress!.trim()
-              : null,
-          pickup_point:
-            data.method === 'PICKUP'
-              ? data.pickupPoint!.trim()
-              : null,
-          preferred_date: preferredDate,
-          preferred_time: preferredTime,
-          status: 'PENDING',
-        },
+      return await this.prisma.$transaction(async (tx) => {
+        // Recheck and lock the purchase request before
+        // creating the fulfilment arrangement.
+        const requestUpdate =
+          await tx.purchase_requests.updateMany({
+            where: {
+              id: purchaseRequest.id,
+              restaurant_id: restaurant.id,
+              status: 'ACCEPTED',
+            },
+            data: {
+              updated_at: new Date(),
+            },
+          });
+
+        if (requestUpdate.count === 0) {
+          throw new ConflictException(
+            'This purchase request is no longer available for arrangement.',
+          );
+        }
+
+        // The unique purchase_request_id constraint
+        // prevents multiple arrangements for one order.
+        return tx.fulfilment_arrangements.create({
+          data: {
+            purchase_request_id: purchaseRequest.id,
+            method: data.method,
+            delivery_address:
+              data.method === 'DELIVERY'
+                ? data.deliveryAddress!.trim()
+                : null,
+            pickup_point:
+              data.method === 'PICKUP'
+                ? data.pickupPoint!.trim()
+                : null,
+            preferred_date: preferredDate,
+            preferred_time: preferredTime,
+            status: 'PENDING',
+          },
+        });
       });
     } catch (error) {
       // Prisma unique constraint violation.
@@ -217,68 +239,87 @@ export class FulfilmentArrangementsService {
       );
     }
 
-    const arrangement =
-      await this.prisma.fulfilment_arrangements.findFirst({
-        where: {
-          id: arrangementId,
-          purchase_requests: {
-            product_listings: {
-              producer_id: producer.id,
+    return this.prisma.$transaction(async (tx) => {
+      const arrangement =
+        await tx.fulfilment_arrangements.findFirst({
+          where: {
+            id: arrangementId,
+            purchase_requests: {
+              product_listings: {
+                producer_id: producer.id,
+              },
             },
           },
-        },
-        include: {
-          purchase_requests: true,
-        },
-      });
+          include: {
+            purchase_requests: true,
+          },
+        });
 
-    if (!arrangement) {
-      throw new NotFoundException(
-        'Arrangement not found.',
-      );
-    }
+      if (!arrangement) {
+        throw new NotFoundException(
+          'Arrangement not found.',
+        );
+      }
 
-    if (
-      arrangement.purchase_requests.status !== 'ACCEPTED'
-    ) {
-      throw new BadRequestException(
-        'The order must still be accepted.',
-      );
-    }
+      if (
+        arrangement.purchase_requests.status !==
+        'ACCEPTED'
+      ) {
+        throw new BadRequestException(
+          'The order must still be accepted.',
+        );
+      }
 
-    if (arrangement.status !== 'PENDING') {
-      throw new BadRequestException(
-        'Only pending arrangements can be confirmed.',
-      );
-    }
+      if (arrangement.status !== 'PENDING') {
+        throw new BadRequestException(
+          'Only pending arrangements can be confirmed.',
+        );
+      }
 
-    const result =
-      await this.prisma.fulfilment_arrangements.updateMany({
-        where: {
-          id: arrangementId,
-          status: 'PENDING',
-          purchase_requests: {
+      // Transition the purchase request to ARRANGED.
+      const requestUpdate =
+        await tx.purchase_requests.updateMany({
+          where: {
+            id: arrangement.purchase_request_id,
             status: 'ACCEPTED',
             product_listings: {
               producer_id: producer.id,
             },
           },
-        },
-        data: {
-          status: 'CONFIRMED',
-          updated_at: new Date(),
-        },
+          data: {
+            status: 'ARRANGED',
+            updated_at: new Date(),
+          },
+        });
+
+      if (requestUpdate.count === 0) {
+        throw new ConflictException(
+          'This purchase request can no longer be arranged.',
+        );
+      }
+
+      // Confirm the fulfilment arrangement.
+      const arrangementUpdate =
+        await tx.fulfilment_arrangements.updateMany({
+          where: {
+            id: arrangementId,
+            status: 'PENDING',
+          },
+          data: {
+            status: 'CONFIRMED',
+            updated_at: new Date(),
+          },
+        });
+
+      if (arrangementUpdate.count === 0) {
+        throw new ConflictException(
+          'This arrangement can no longer be confirmed.',
+        );
+      }
+
+      return tx.fulfilment_arrangements.findUnique({
+        where: { id: arrangementId },
       });
-
-    if (result.count === 0) {
-      throw new ConflictException(
-        'This arrangement can no longer be confirmed.',
-      );
-    }
-
-    return this.prisma.fulfilment_arrangements.findUnique({
-      where: { id: arrangementId },
     });
   }
 }
-

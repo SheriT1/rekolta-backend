@@ -7,7 +7,6 @@ import {
 import { PrismaService } from '../prisma/prisma.service.js';
 import { CreatePurchaseRequestDto } from './dto/create-purchase-request.dto.js';
 
-
 @Injectable()
 export class PurchaseRequestsService {
   constructor(private readonly prisma: PrismaService) {}
@@ -66,8 +65,6 @@ export class PurchaseRequestsService {
     });
   }
 
-
-  
   // RESTAURANT: Cancel own submitted or accepted purchase request
   async cancel(userId: string, requestId: string) {
     const restaurant =
@@ -88,6 +85,9 @@ export class PurchaseRequestsService {
             id: requestId,
             restaurant_id: restaurant.id,
           },
+          include: {
+            fulfilment_arrangements: true,
+          },
         });
 
       if (!purchaseRequest) {
@@ -102,6 +102,15 @@ export class PurchaseRequestsService {
       ) {
         throw new BadRequestException(
           'Only submitted or accepted requests can be cancelled.',
+        );
+      }
+
+      if (
+        purchaseRequest.fulfilment_arrangements?.status ===
+        'CONFIRMED'
+      ) {
+        throw new BadRequestException(
+          'A purchase request with a confirmed arrangement cannot be cancelled.',
         );
       }
 
@@ -133,19 +142,18 @@ export class PurchaseRequestsService {
           },
           data: {
             available_quantity: {
-              increment:
-                purchaseRequest.requested_quantity,
+              increment: purchaseRequest.requested_quantity,
             },
           },
         });
       }
 
-      // Cancel any associated pickup/delivery arrangement.
+      // Cancel any associated pending or declined arrangement.
       await tx.fulfilment_arrangements.updateMany({
         where: {
           purchase_request_id: requestId,
           status: {
-            in: ['PENDING', 'CONFIRMED'],
+            in: ['PENDING', 'DECLINED'],
           },
         },
         data: {
@@ -160,8 +168,6 @@ export class PurchaseRequestsService {
     });
   }
 
-
-
   // PRODUCER: Accept an incoming purchase request
   async accept(userId: string, requestId: string) {
     const producer = await this.prisma.producer_profiles.findUnique({
@@ -173,14 +179,15 @@ export class PurchaseRequestsService {
     }
 
     return this.prisma.$transaction(async (tx) => {
-      const purchaseRequest = await tx.purchase_requests.findFirst({
-        where: {
-          id: requestId,
-          product_listings: {
-            producer_id: producer.id,
+      const purchaseRequest =
+        await tx.purchase_requests.findFirst({
+          where: {
+            id: requestId,
+            product_listings: {
+              producer_id: producer.id,
+            },
           },
-        },
-      });
+        });
 
       if (!purchaseRequest) {
         throw new NotFoundException('Purchase request not found.');
@@ -287,7 +294,6 @@ export class PurchaseRequestsService {
       where: { id: requestId },
     });
   }
-
 
   // RESTAURANT: View own purchase requests
   async findMine(userId: string) {
