@@ -1,4 +1,3 @@
-
 import {
   BadRequestException,
   ConflictException,
@@ -345,10 +344,11 @@ export class FulfilmentArrangementsService {
           where: {
             id: arrangementId,
             status: 'PENDING',
+            updated_at: { gte: arrangement.updated_at, lt: new Date(arrangement.updated_at.getTime() + 1) },
           },
           data: {
             status: 'CONFIRMED',
-            updated_at: new Date(),
+            updated_at: new Date(Math.max(Date.now(), arrangement.updated_at.getTime() + 1)),
           },
         });
 
@@ -442,10 +442,11 @@ export class FulfilmentArrangementsService {
           where: {
             id: arrangementId,
             status: 'PENDING',
+            updated_at: { gte: arrangement.updated_at, lt: new Date(arrangement.updated_at.getTime() + 1) },
           },
           data: {
             status: 'DECLINED',
-            updated_at: new Date(),
+            updated_at: new Date(Math.max(Date.now(), arrangement.updated_at.getTime() + 1)),
           },
         });
 
@@ -546,6 +547,7 @@ export class FulfilmentArrangementsService {
           where: {
             id: arrangementId,
             status: 'PENDING',
+            updated_at: { gte: arrangement.updated_at, lt: new Date(arrangement.updated_at.getTime() + 1) },
           },
           data: {
             counter_method: proposal.method,
@@ -559,7 +561,7 @@ export class FulfilmentArrangementsService {
               proposal.preferredTime,
             counter_message: proposal.message,
             status: 'COUNTERPROPOSED',
-            updated_at: new Date(),
+            updated_at: new Date(Math.max(Date.now(), arrangement.updated_at.getTime() + 1)),
           },
         });
 
@@ -572,6 +574,74 @@ export class FulfilmentArrangementsService {
       return tx.fulfilment_arrangements.findUnique({
         where: { id: arrangementId },
       });
+    });
+  }
+
+  async acceptCounterproposal(userId: string, arrangementId: string) {
+    return this.respondToCounterproposal(userId, arrangementId, true);
+  }
+
+  async declineCounterproposal(userId: string, arrangementId: string) {
+    return this.respondToCounterproposal(userId, arrangementId, false);
+  }
+
+  private async respondToCounterproposal(userId: string, arrangementId: string, accept: boolean) {
+    const restaurant = await this.prisma.restaurant_profiles.findUnique({ where: { user_id: userId } });
+    if (!restaurant) throw new NotFoundException('Restaurant profile not found.');
+    return this.prisma.$transaction(async (tx) => {
+      const arrangement = await tx.fulfilment_arrangements.findFirst({
+        where: { id: arrangementId, purchase_requests: { restaurant_id: restaurant.id } },
+        include: { purchase_requests: true },
+      });
+      if (!arrangement) throw new NotFoundException('Arrangement not found.');
+      if (arrangement.status !== 'COUNTERPROPOSED' || arrangement.purchase_requests.status !== 'ACCEPTED') {
+        throw new ConflictException('No active counterproposal is available.');
+      }
+      const order = await tx.purchase_requests.updateMany({
+        where: { id: arrangement.purchase_request_id, restaurant_id: restaurant.id, status: 'ACCEPTED' },
+        data: { status: accept ? 'ARRANGED' : 'ACCEPTED', updated_at: new Date() },
+      });
+      if (!order.count) throw new ConflictException('Order status has changed.');
+      const result = await tx.fulfilment_arrangements.updateMany({
+        where: { id: arrangementId, status: 'COUNTERPROPOSED', updated_at: { gte: arrangement.updated_at, lt: new Date(arrangement.updated_at.getTime() + 1) } },
+        data: { status: accept ? 'CONFIRMED' : 'DECLINED', updated_at: new Date(Math.max(Date.now(), arrangement.updated_at.getTime() + 1)) },
+      });
+      if (!result.count) throw new ConflictException('Proposal has changed. Refresh and try again.');
+      return tx.fulfilment_arrangements.findUnique({ where: { id: arrangementId } });
+    });
+  }
+
+  async revise(userId: string, arrangementId: string, data: CreateCounterproposalDto) {
+    const restaurant = await this.prisma.restaurant_profiles.findUnique({ where: { user_id: userId } });
+    if (!restaurant) throw new NotFoundException('Restaurant profile not found.');
+    const proposal = this.validateProposalDetails(data);
+    return this.prisma.$transaction(async (tx) => {
+      const arrangement = await tx.fulfilment_arrangements.findFirst({
+        where: { id: arrangementId, purchase_requests: { restaurant_id: restaurant.id } },
+        include: { purchase_requests: true },
+      });
+      if (!arrangement) throw new NotFoundException('Arrangement not found.');
+      if (arrangement.status !== 'DECLINED' || arrangement.purchase_requests.status !== 'ACCEPTED') {
+        throw new ConflictException('Only declined arrangements for accepted orders can be revised.');
+      }
+      const order = await tx.purchase_requests.updateMany({
+        where: { id: arrangement.purchase_request_id, restaurant_id: restaurant.id, status: 'ACCEPTED' },
+        data: { updated_at: new Date() },
+      });
+      if (!order.count) throw new ConflictException('Order status has changed.');
+      const result = await tx.fulfilment_arrangements.updateMany({
+        where: { id: arrangementId, status: 'DECLINED', updated_at: { gte: arrangement.updated_at, lt: new Date(arrangement.updated_at.getTime() + 1) } },
+        data: {
+          method: proposal.method, delivery_address: proposal.deliveryAddress,
+          pickup_point: proposal.pickupPoint, preferred_date: proposal.preferredDate,
+          preferred_time: proposal.preferredTime, message: proposal.message,
+          counter_method: null, counter_delivery_address: null, counter_pickup_point: null,
+          counter_preferred_date: null, counter_preferred_time: null, counter_message: null,
+          status: 'PENDING', updated_at: new Date(Math.max(Date.now(), arrangement.updated_at.getTime() + 1)),
+        },
+      });
+      if (!result.count) throw new ConflictException('Proposal has changed. Refresh and try again.');
+      return tx.fulfilment_arrangements.findUnique({ where: { id: arrangementId } });
     });
   }
 }
