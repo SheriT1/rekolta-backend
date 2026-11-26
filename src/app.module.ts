@@ -7,6 +7,7 @@ import { PrismaService } from './prisma/prisma.service.js';
 import { AuthModule } from './auth/auth.module.js';
 import { PurchaseRequestsModule } from './purchase-requests/purchase-requests.module.js';
 import { FulfilmentArrangementsModule } from './fulfilment-arrangements/fulfilment-arrangements.module.js';
+import { AdminModule } from './admin/admin.module.js';
 
 @Module({
   imports: [
@@ -14,6 +15,7 @@ import { FulfilmentArrangementsModule } from './fulfilment-arrangements/fulfilme
     AuthModule,
     PurchaseRequestsModule,
     FulfilmentArrangementsModule,
+    AdminModule,
   ],
   controllers: [AppController],
   providers: [AppService, PrismaService],
