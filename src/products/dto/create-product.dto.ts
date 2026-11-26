@@ -1,4 +1,3 @@
-
 import {
   IsString,
   IsNotEmpty,
@@ -9,6 +8,7 @@ import {
   IsDateString,
   MaxLength,
   Min,
+  IsIn,
 } from 'class-validator';
 
 export class CreateProductDto {
@@ -36,6 +36,9 @@ export class CreateProductDto {
   @IsString()
   @IsNotEmpty()
   @MaxLength(100)
+  @IsIn(['LOW', 'STANDARD', 'HIGH', 'PREMIUM'], {
+    message: 'Quality must be LOW, STANDARD, HIGH or PREMIUM.',
+  })
   quality: string;
 
   @IsNumber()
