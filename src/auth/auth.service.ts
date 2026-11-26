@@ -4,6 +4,7 @@ import {
   Inject,
   ConflictException,
   UnauthorizedException,
+  ForbiddenException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { hash, compare } from 'bcrypt';
@@ -23,6 +24,15 @@ export class AuthService {
 
   // REGISTER
   async register(data: RegisterDto) {
+    if (
+      data.role !== 'PRODUCER' &&
+      data.role !== 'RESTAURANT'
+    ) {
+      throw new ForbiddenException(
+        'Public registration is only available for producers and restaurants.',
+      );
+    }
+
     const email = data.email.trim().toLowerCase();
 
     const existingUser = await this.prisma.users.findUnique({
@@ -121,6 +131,13 @@ export class AuthService {
       );
     }
 
+    // Prevent blocked users from logging in
+    if (user.is_blocked) {
+      throw new ForbiddenException(
+        'Your account has been blocked. Please contact the administrator.',
+      );
+    }
+
     // Generate JWT after successful login
     const accessToken = await this.jwtService.signAsync({
       sub: user.id,
@@ -160,33 +177,37 @@ export class AuthService {
     }
 
     if (
-      typeof payload.sub !== 'string' &&
-      typeof payload.sub !== 'number'
+      typeof payload.sub !== 'string' ||
+      !payload.sub
     ) {
       throw new UnauthorizedException(
         'Invalid authentication token.',
       );
     }
 
-    // Look up the user by the ID stored in the JWT.
-    // The ID type must match the Prisma schema.
-    const userId = payload.sub;
-
-    const user = await this.prisma.users.findFirst({
+    const user = await this.prisma.users.findUnique({
       where: {
-        id: userId as string,
+        id: payload.sub,
       },
       select: {
         id: true,
         email: true,
         full_name: true,
         role: true,
+        is_blocked: true,
       },
     });
 
     if (!user) {
       throw new UnauthorizedException(
         'User account no longer exists.',
+      );
+    }
+
+    // Prevent blocked users from using existing sessions
+    if (user.is_blocked) {
+      throw new ForbiddenException(
+        'Your account has been blocked. Please contact the administrator.',
       );
     }
 
