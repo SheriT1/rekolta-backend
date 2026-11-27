@@ -54,9 +54,7 @@ export class ReportsService {
         where: {
           restaurant_id: restaurant.id,
           product_listing_id: product.id,
-          status: {
-            in: ['PENDING', 'REVIEWED'],
-          },
+          status: 'PENDING',
         },
       });
 

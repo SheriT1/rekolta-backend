@@ -19,8 +19,8 @@ export class UpdateProductVisibilityDto {
 }
 
 export class UpdateReportDto {
-  @IsIn(['REVIEWED', 'RESOLVED', 'DISMISSED'])
-  status: 'REVIEWED' | 'RESOLVED' | 'DISMISSED';
+  @IsIn(['RESOLVED', 'DISMISSED'])
+  status: 'RESOLVED' | 'DISMISSED';
 
   @IsOptional()
   @IsString()
