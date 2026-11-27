@@ -1,6 +1,7 @@
 
 import {
   Body,
+  Patch,
   Controller,
   Get,
   HttpCode,
@@ -15,6 +16,7 @@ import type { Request, Response } from 'express';
 import { AuthService } from './auth.service.js';
 import { RegisterDto } from './dto/register.dto.js';
 import { LoginDto } from './dto/login.dto.js';
+import { UpdateProfileDto } from './dto/update-profile.dto.js';
 
 @Controller('auth')
 export class AuthController {
@@ -72,6 +74,31 @@ export class AuthController {
       user,
     };
   }
+
+  @Get('profile')
+async getProfile(@Req() request: Request) {
+  const accessToken = request.cookies?.rekolta_access_token;
+
+  if (typeof accessToken !== 'string' || !accessToken) {
+    throw new UnauthorizedException('You are not logged in.');
+  }
+
+  return this.authService.getProfile(accessToken);
+}
+
+@Patch('profile')
+async updateProfile(
+  @Req() request: Request,
+  @Body() data: UpdateProfileDto,
+) {
+  const accessToken = request.cookies?.rekolta_access_token;
+
+  if (typeof accessToken !== 'string' || !accessToken) {
+    throw new UnauthorizedException('You are not logged in.');
+  }
+
+  return this.authService.updateProfile(accessToken, data);
+}
 
   // LOGOUT
   @Post('logout')
