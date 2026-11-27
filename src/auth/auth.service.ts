@@ -137,7 +137,7 @@ export class AuthService {
     // Prevent blocked users from logging in
     if (user.is_blocked) {
       throw new ForbiddenException(
-        'Your account has been blocked. Please contact the administrator.',
+        'Your account has been blocked.',
       );
     }
 
@@ -210,7 +210,7 @@ export class AuthService {
     // Prevent blocked users from using existing sessions
     if (user.is_blocked) {
       throw new ForbiddenException(
-        'Your account has been blocked. Please contact the administrator.',
+        'Your account has been blocked.',
       );
     }
 
