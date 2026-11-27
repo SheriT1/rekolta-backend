@@ -9,6 +9,7 @@ import { FulfilmentArrangementsModule } from './fulfilment-arrangements/fulfilme
 import { AdminModule } from './admin/admin.module.js';
 import { FavoritesModule } from './favorites/favorites.module.js';
 import { ReportsModule } from './reports/reports.module.js';
+import { RecommendationsModule } from './recommendations/recommendations.module.js';
 
 @Module({
   imports: [
@@ -19,6 +20,7 @@ import { ReportsModule } from './reports/reports.module.js';
     AdminModule,
     FavoritesModule,
     ReportsModule,
+    RecommendationsModule,
   ],
   controllers: [AppController],
   providers: [AppService, PrismaService],
