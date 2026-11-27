@@ -186,42 +186,57 @@ export class AdminService {
   // REPORT MANAGEMENT
 
   async getReports() {
-    return this.prisma.reports.findMany({
-      select: {
-        id: true,
-        reason: true,
-        status: true,
-        admin_notes: true,
-        created_at: true,
-        updated_at: true,
-        product_listings: {
-          select: {
-            id: true,
-            name: true,
-            is_hidden: true,
-            producer_profiles: {
-              select: {
-                business_name: true,
-              },
+  return this.prisma.reports.findMany({
+    select: {
+      id: true,
+      reason: true,
+      status: true,
+      admin_notes: true,
+      created_at: true,
+      updated_at: true,
+      product_listings: {
+        select: {
+          id: true,
+          name: true,
+          description: true,
+          is_hidden: true,
+          is_active: true,
+          product_images: {
+            select: {
+              id: true,
+              image_url: true,
+              is_cover: true,
+              sort_order: true,
+            },
+            orderBy: {
+              sort_order: 'asc',
+            },
+          },
+          producer_profiles: {
+            select: {
+              user_id: true,
+              business_name: true,
+              city: true,
             },
           },
         },
-        restaurant_profiles: {
-          select: {
-            restaurant_name: true,
-          },
-        },
-        users: {
-          select: {
-            full_name: true,
-          },
+      },
+      restaurant_profiles: {
+        select: {
+          restaurant_name: true,
         },
       },
-      orderBy: {
-        created_at: 'desc',
+      users: {
+        select: {
+          full_name: true,
+        },
       },
-    });
-  }
+    },
+    orderBy: {
+      created_at: 'desc',
+    },
+  });
+}
 
   async updateReport(
     reportId: string,
